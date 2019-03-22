@@ -1,0 +1,69 @@
+version: '3.7'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${TAG}
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - cluster.name=demo-cluster
+#    ports:
+#      - "9200:9200"
+    networks:
+      - lab
+    restart: always
+    healthcheck:
+      test: if [[ $${ELASTICSEARCH_STATUS} -eq 200 ]]; then echo 0; else echo 1; fi
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${TAG}
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - lab
+    restart: always
+    healthcheck:
+      test: if [[ $${KIBANA_STATUS} -eq 200 ]]; then echo 0; else echo 1; fi #La variable no la interpola Compose si no la ejecución del test
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:${TAG}
+    container_name: filebeat
+    volumes:
+      - ./log:/mnt/log/
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+    depends_on:
+      - elasticsearch
+      - kibana
+    networks:
+      - lab
+    restart: always
+    healthcheck:
+      test: filebeat test config
+      interval: 30s
+      timeout: 15s
+      retries: 5
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${TAG}
+    container_name: logstash
+    volumes:
+      - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    depends_on:
+      - elasticsearch
+    networks:
+      - lab
+    restart: always
+    healthcheck:
+      test: bin/logstash -t
+      interval: 60s
+      timeout: 50s
+      retries: 5
+networks:
+  lab:
+    driver: bridge
